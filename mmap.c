@@ -422,7 +422,7 @@ mmap_close_method(mmap_object *self, PyObject *unused)
 #define CHECK_VALID(err)                                                \
 do {                                                                    \
     if (self->data == NULL) {                                           \
-    PyErr_SetString(PyExc_ValueError, "mmap closed or invalid");        \
+    PyErr_SetString(PyExc_ValueError, "smmap closed or invalid");       \
     return err;                                                         \
     }                                                                   \
 } while (0)
@@ -432,7 +432,7 @@ is_writeable(mmap_object *self)
 {
     if (self->access != ACCESS_READ)
         return 1;
-    PyErr_Format(PyExc_TypeError, "mmap can't modify a readonly memory map.");
+    PyErr_Format(PyExc_TypeError, "smmap can't modify a readonly memory map.");
     return 0;
 }
 
@@ -449,7 +449,7 @@ mmap_buffer_getreadbuf(mmap_object *self, Py_ssize_t index, const void **ptr)
     CHECK_VALID(-1);
     if (index != 0) {
         PyErr_SetString(PyExc_SystemError,
-                        "Accessing non-existent mmap segment");
+                        "Accessing non-existent smmap segment");
         return -1;
     }
     *ptr = self->data;
@@ -462,7 +462,7 @@ mmap_buffer_getwritebuf(mmap_object *self, Py_ssize_t index, const void **ptr)
     CHECK_VALID(-1);
     if (index != 0) {
         PyErr_SetString(PyExc_SystemError,
-                        "Accessing non-existent mmap segment");
+                        "Accessing non-existent smmap segment");
         return -1;
     }
     if (!is_writeable(self))
@@ -504,7 +504,7 @@ mmap_item(mmap_object *self, Py_ssize_t i)
 {
     CHECK_VALID(NULL);
     if (i < 0 || i >= self->elem) {
-        PyErr_SetString(PyExc_IndexError, "mmap index out of range");
+        PyErr_SetString(PyExc_IndexError, "smmap index out of range");
         return NULL;
     }
     return self->get(self->data, i);
@@ -553,7 +553,7 @@ mmap_concat(mmap_object *self, PyObject *bb)
 {
     CHECK_VALID(NULL);
     PyErr_SetString(PyExc_SystemError,
-                    "mmaps don't support concatenation");
+                    "smmaps don't support concatenation");
     return NULL;
 }
 
@@ -562,7 +562,7 @@ mmap_repeat(mmap_object *self, Py_ssize_t n)
 {
     CHECK_VALID(NULL);
     PyErr_SetString(PyExc_SystemError,
-                    "mmaps don't support repeat operation");
+                    "smmaps don't support repeat operation");
     return NULL;
 }
 
@@ -590,15 +590,15 @@ mmap_ass_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh, PyObject *v
 
     if (v == NULL) {
         PyErr_SetString(PyExc_TypeError,
-                        "mmap object doesn't support slice deletion");
+                        "smmap object doesn't support slice deletion");
         return -1;
     }
-    if ((seq = PySequence_Fast(v, "mmap slice assignment must be a sequence")) == NULL ) {
+    if ((seq = PySequence_Fast(v, "smmap slice assignment must be a sequence")) == NULL ) {
         return -1;
     }
     if (PySequence_Fast_GET_SIZE(seq) != len) {
         PyErr_SetString(PyExc_IndexError,
-                        "mmap slice assignment is wrong size");
+                        "smmap slice assignment is wrong size");
         Py_DECREF(seq);
         return -1;
     }
@@ -622,12 +622,12 @@ mmap_ass_item(mmap_object *self, Py_ssize_t i, PyObject *v)
 {
     CHECK_VALID(-1);
     if (i < 0 || i >= self->elem) {
-        PyErr_SetString(PyExc_IndexError, "mmap index out of range");
+        PyErr_SetString(PyExc_IndexError, "smmap index out of range");
         return -1;
     }
     if (v == NULL) {
         PyErr_SetString(PyExc_TypeError,
-                        "mmap object doesn't support item deletion");
+                        "smmap object doesn't support item deletion");
         return -1;
     }
     if (!is_writeable(self))
@@ -675,7 +675,7 @@ d double");
 
 static PyTypeObject mmap_object_type = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    "mmap.mmap",                                /* tp_name */
+    "smmap.mmap",                               /* tp_name */
     sizeof(mmap_object),                        /* tp_size */
     0,                                          /* tp_itemsize */
     /* methods */
@@ -803,7 +803,7 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
         break;
     default:
         return PyErr_Format(PyExc_ValueError,
-                            "mmap invalid access parameter.");
+                            "smmap invalid access parameter.");
     }
 
     m_obj = (mmap_object *)type->tp_alloc(type, 0);
@@ -838,20 +838,20 @@ setint(PyObject *d, const char *name, long value)
 }
 
 PyMODINIT_FUNC
-initmmap(void)
+initsmmap(void)
 {
     PyObject *dict, *module;
 
     if (PyType_Ready(&mmap_object_type) < 0)
         return;
 
-    module = Py_InitModule("mmap", NULL);
+    module = Py_InitModule("smmap", NULL);
     if (module == NULL)
         return;
     dict = PyModule_GetDict(module);
     if (!dict)
         return;
-    mmap_module_error = PyErr_NewException("mmap.error",
+    mmap_module_error = PyErr_NewException("smmap.error",
         PyExc_EnvironmentError , NULL);
     if (mmap_module_error == NULL)
         return;
@@ -861,3 +861,4 @@ initmmap(void)
     setint(dict, "ACCESS_READ", ACCESS_READ);
     setint(dict, "ACCESS_WRITE", ACCESS_WRITE);
 }
+

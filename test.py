@@ -1,7 +1,7 @@
-import mmap
+import smmap
 
 f = open('data' ,'r+')
-x = mmap.mmap(f.fileno(), 10, 'h')
+x = smmap.mmap(f.fileno(), 10, 'h')
 print x[0]
 print x[0:3]
 x[1]=5
