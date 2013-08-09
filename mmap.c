@@ -38,7 +38,7 @@ typedef struct {
     PyObject_HEAD
     void *      data;
     size_t      size;
-    size_t      elem;
+    Py_ssize_t  elem;
     off_t       offset;
     char        type;
 
@@ -496,14 +496,14 @@ static Py_ssize_t
 mmap_length(mmap_object *self)
 {
     CHECK_VALID(-1);
-    return self->size;
+    return self->elem;
 }
 
 static PyObject *
 mmap_item(mmap_object *self, Py_ssize_t i)
 {
     CHECK_VALID(NULL);
-    if (i < 0 || (size_t)i >= self->size) {
+    if (i < 0 || i >= self->elem) {
         PyErr_SetString(PyExc_IndexError, "mmap index out of range");
         return NULL;
     }
@@ -521,14 +521,14 @@ mmap_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh)
     CHECK_VALID(NULL);
     if (ilow < 0)
         ilow = 0;
-    else if ((size_t)ilow > self->size)
-        ilow = self->size;
+    else if (ilow > self->elem)
+        ilow = self->elem;
     if (ihigh < 0)
         ihigh = 0;
     if (ihigh < ilow)
         ihigh = ilow;
-    else if ((size_t)ihigh > self->size)
-        ihigh = self->size;
+    else if (ihigh > self->elem)
+        ihigh = self->elem;
 
     len = ihigh - ilow;
 
@@ -577,14 +577,14 @@ mmap_ass_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh, PyObject *v
     CHECK_VALID(-1);
     if (ilow < 0)
         ilow = 0;
-    else if ((size_t)ilow > self->size)
-        ilow = self->size;
+    else if (ilow > self->elem)
+        ilow = self->elem;
     if (ihigh < 0)
         ihigh = 0;
     if (ihigh < ilow)
         ihigh = ilow;
-    else if ((size_t)ihigh > self->size)
-        ihigh = self->size;
+    else if (ihigh > self->elem)
+        ihigh = self->elem;
 
     len = ihigh - ilow;
 
@@ -621,7 +621,7 @@ static int
 mmap_ass_item(mmap_object *self, Py_ssize_t i, PyObject *v)
 {
     CHECK_VALID(-1);
-    if (i < 0 || (size_t)i >= self->size) {
+    if (i < 0 || i >= self->elem) {
         PyErr_SetString(PyExc_IndexError, "mmap index out of range");
         return -1;
     }
@@ -798,14 +798,14 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
     m_obj = (mmap_object *)type->tp_alloc(type, 0);
     if (m_obj == NULL) {return NULL;}
     m_obj->data = NULL;
-    m_obj->size = (size_t) map_size;
+    m_obj->size = (size_t) (map_size * format->size);
     m_obj->offset = offset;
     m_obj->data = mmap(NULL, map_size,
                        prot, MAP_SHARED,
                        fd, offset);
     m_obj->get = format->get;
     m_obj->set = format->set;
-    m_obj->elem = format->size;
+    m_obj->elem = map_size;
 
     if (m_obj->data == (void *)-1) {
         m_obj->data = NULL;
