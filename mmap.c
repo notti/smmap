@@ -656,10 +656,21 @@ static PyObject *
 new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict);
 
 PyDoc_STRVAR(mmap_doc,
-"mmap(fileno, length[, access[, offset]])\n\
+"mmap(fileno, length, format[, access[, offset]])\n\
 \n\
 Maps length bytes from the file specified by the file descriptor fileno,\n\
-and returns a mmap object.");
+and returns a mmap object.\n\
+Format specifies the number format like in the struct module.\n\
+b signed char\n\
+B unsigned char\n\
+h short\n\
+H unsigned short\n\
+i int\n\
+I unsigned int\n\
+l long\n\
+L unsigned long\n\
+f float\n\
+d double");
 
 
 static PyTypeObject mmap_object_type = {
