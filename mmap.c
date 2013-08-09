@@ -27,10 +27,18 @@ typedef enum
     ACCESS_WRITE,
 } access_mode;
 
+typedef struct _formatdef {
+    char format;
+    Py_ssize_t size;
+    PyObject* (*get)(const void *, Py_ssize_t);
+    int (*set)(void *, PyObject*, Py_ssize_t);
+} formatdef;
+
 typedef struct {
     PyObject_HEAD
     void *      data;
-    size_t      size; //insert item size for correct get_buffer
+    size_t      size;
+    size_t      elem;
     off_t       offset;
     char        type;
 
@@ -375,6 +383,19 @@ np_double(void *p, PyObject *v, Py_ssize_t i)
     return 0;
 }
 
+static formatdef format_table[] = {
+    {'b',       sizeof(char),   nu_byte,        np_byte},
+    {'B',       sizeof(char),   nu_ubyte,       np_ubyte},
+    {'h',       sizeof(short),  nu_short,       np_short},
+    {'H',       sizeof(short),  nu_ushort,      np_ushort},
+    {'i',       sizeof(int),    nu_int,         np_int},
+    {'I',       sizeof(int),    nu_uint,        np_uint},
+    {'l',       sizeof(long),   nu_long,        np_long},
+    {'L',       sizeof(long),   nu_ulong,       np_ulong},
+    {'f',       sizeof(float),  nu_float,       np_float},
+    {'d',       sizeof(double), nu_double,      np_double},
+    {0}
+};
 
 static void
 mmap_object_dealloc(mmap_object *m_obj)
@@ -486,7 +507,7 @@ mmap_item(mmap_object *self, Py_ssize_t i)
         PyErr_SetString(PyExc_IndexError, "mmap index out of range");
         return NULL;
     }
-    return PyString_FromStringAndSize(self->data + i, 1);
+    return self->get(self->data, i);
 }
 
 static PyObject *
@@ -567,8 +588,6 @@ mmap_ass_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh, PyObject *v
 static int
 mmap_ass_item(mmap_object *self, Py_ssize_t i, PyObject *v)
 {
-    const char *buf;
-
     CHECK_VALID(-1);
     if (i < 0 || (size_t)i >= self->size) {
         PyErr_SetString(PyExc_IndexError, "mmap index out of range");
@@ -579,15 +598,9 @@ mmap_ass_item(mmap_object *self, Py_ssize_t i, PyObject *v)
                         "mmap object doesn't support item deletion");
         return -1;
     }
-    if (! (PyString_Check(v) && PyString_Size(v)==1) ) {
-        PyErr_SetString(PyExc_IndexError,
-                        "mmap assignment must be single-character string");
-        return -1;
-    }
     if (!is_writeable(self))
         return -1;
-    buf = PyString_AsString(v);
-    self->data[i] = buf[0];
+    self->set(self->data, v, i);
     return 0;
 }
 
@@ -688,6 +701,17 @@ _GetMapSize(PyObject *o, const char* param)
     return -1;
 }
 
+static const formatdef *
+getentry(int c, const formatdef *f)
+{
+    for (; f->format != '\0'; f++) {
+        if (f->format == c) {
+            return f;
+        }
+    }
+    return NULL;
+}
+
 #ifdef HAVE_LARGEFILE_SUPPORT
 #define _Py_PARSE_OFF_T "L"
 #else
@@ -703,11 +727,13 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
     off_t offset = 0;
     int fd, prot = PROT_WRITE | PROT_READ;
     int access = (int)ACCESS_DEFAULT;
-    static char *keywords[] = {"fileno", "length",
+    char *fmt = " ";
+    const formatdef *format;
+    static char *keywords[] = {"fileno", "length", "format",
                                      "access", "offset", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "iO|iii" _Py_PARSE_OFF_T, keywords,
-                                     &fd, &map_size_obj, &prot,
+    if (!PyArg_ParseTupleAndKeywords(args, kwdict, "iOs|iii" _Py_PARSE_OFF_T, keywords,
+                                     &fd, &map_size_obj, &fmt, &prot,
                                      &access, &offset))
         return NULL;
     map_size = _GetMapSize(map_size_obj, "size");
@@ -716,6 +742,11 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
     if (offset < 0) {
         PyErr_SetString(PyExc_OverflowError,
             "memory mapped offset must be positive");
+        return NULL;
+    }
+
+    if (fmt == NULL || *fmt == 0 || (format = getentry(*fmt, format_table)) == NULL) {
+        PyErr_SetString(PyExc_ValueError, "bad char in struct format");
         return NULL;
     }
 
@@ -741,8 +772,11 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
     m_obj->data = mmap(NULL, map_size,
                        prot, MAP_SHARED,
                        fd, offset);
+    m_obj->get = format->get;
+    m_obj->set = format->set;
+    m_obj->elem = format->size;
 
-    if (m_obj->data == (char *)-1) {
+    if (m_obj->data == (void *)-1) {
         m_obj->data = NULL;
         Py_DECREF(m_obj);
         PyErr_SetFromErrno(mmap_module_error);
