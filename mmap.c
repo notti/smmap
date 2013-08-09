@@ -600,8 +600,7 @@ mmap_ass_item(mmap_object *self, Py_ssize_t i, PyObject *v)
     }
     if (!is_writeable(self))
         return -1;
-    self->set(self->data, v, i);
-    return 0;
+    return self->set(self->data, v, i);
 }
 
 static PySequenceMethods mmap_as_sequence = {
