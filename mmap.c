@@ -513,6 +513,11 @@ mmap_item(mmap_object *self, Py_ssize_t i)
 static PyObject *
 mmap_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh)
 {
+    PyObject *ret;
+    PyObject *item;
+    Py_ssize_t len;
+    Py_ssize_t i;
+
     CHECK_VALID(NULL);
     if (ilow < 0)
         ilow = 0;
@@ -525,7 +530,22 @@ mmap_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh)
     else if ((size_t)ihigh > self->size)
         ihigh = self->size;
 
-    return PyString_FromStringAndSize(self->data + ilow, ihigh-ilow);
+    len = ihigh - ilow;
+
+    if ((ret = PyTuple_New(len)) == NULL) {
+        return NULL;
+    }
+
+    for (i = 0; i < len; i++) {
+        item = self->get(self->data, i + ilow);
+        if (!item) {
+            Py_DECREF(ret);
+            return NULL;
+        }
+        PyTuple_SET_ITEM(ret, i, item);
+    }
+
+    return ret;
 }
 
 static PyObject *
@@ -549,7 +569,10 @@ mmap_repeat(mmap_object *self, Py_ssize_t n)
 static int
 mmap_ass_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh, PyObject *v)
 {
-    const char *buf;
+    PyObject *seq;
+    PyObject **items;
+    Py_ssize_t i;
+    Py_ssize_t len;
 
     CHECK_VALID(-1);
     if (ilow < 0)
@@ -563,25 +586,34 @@ mmap_ass_slice(mmap_object *self, Py_ssize_t ilow, Py_ssize_t ihigh, PyObject *v
     else if ((size_t)ihigh > self->size)
         ihigh = self->size;
 
+    len = ihigh - ilow;
+
     if (v == NULL) {
         PyErr_SetString(PyExc_TypeError,
                         "mmap object doesn't support slice deletion");
         return -1;
     }
-    if (! (PyString_Check(v)) ) {
-        PyErr_SetString(PyExc_IndexError,
-                        "mmap slice assignment must be a string");
+    if ((seq = PySequence_Fast(v, "mmap slice assignment must be a sequence")) == NULL ) {
         return -1;
     }
-    if (PyString_Size(v) != (ihigh - ilow)) {
+    if (PySequence_Fast_GET_SIZE(seq) != len) {
         PyErr_SetString(PyExc_IndexError,
                         "mmap slice assignment is wrong size");
+        Py_DECREF(seq);
         return -1;
     }
-    if (!is_writeable(self))
+    if (!is_writeable(self)) {
+        Py_DECREF(seq);
         return -1;
-    buf = PyString_AsString(v);
-    memcpy(self->data + ilow, buf, ihigh-ilow);
+    }
+    items = PySequence_Fast_ITEMS(seq);
+    for(i = 0; i < len; i++) {
+        if (self->set(self->data, items[i], i + ilow) == -1) {
+            Py_DECREF(seq);
+            return -1;
+        }
+    }
+    Py_DECREF(seq);
     return 0;
 }
 
