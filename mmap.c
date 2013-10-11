@@ -811,7 +811,7 @@ new_mmap_object(PyTypeObject *type, PyObject *args, PyObject *kwdict)
     m_obj->data = NULL;
     m_obj->size = (size_t) (map_size * format->size);
     m_obj->offset = offset;
-    m_obj->data = mmap(NULL, map_size,
+    m_obj->data = mmap(NULL, m_obj->size,
                        prot, MAP_SHARED,
                        fd, offset);
     m_obj->get = format->get;
